@@ -51,6 +51,9 @@ jobs:
           gunzip -c "$seed" | psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q
       - if: steps.check.outputs.ok == 'true'
         run: python -m scamwatch migrate
+      - name: Refresh carrier DNS facts
+        if: steps.check.outputs.ok == 'true'
+        run: python -m scamwatch reference || echo "DNS refresh failed; keeping the last snapshot"
       - name: Collect
         if: steps.check.outputs.ok == 'true'
         run: python -m scamwatch watch --hours 0.75
@@ -65,7 +68,7 @@ jobs:
         run: |
           git config user.name "scamwatch-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add outputs dashboard/index.html
+          git add outputs dashboard/index.html data/reference/brand_dns.json
           if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi
           git commit -m "Refresh results and dashboard [skip ci]"
           git pull --rebase origin main

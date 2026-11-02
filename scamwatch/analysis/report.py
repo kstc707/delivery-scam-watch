@@ -145,8 +145,10 @@ def registration_summary(df: pd.DataFrame, conn) -> dict:
     """What registry records say about blocklisted brand domains: still registered or already gone,
     and how old the registered ones were when we first saw them listed."""
     regs = pd.DataFrame(
-        conn.execute("SELECT registered_domain, created_at, registrar, status FROM registrations").fetchall(),
-        columns=["registered_domain", "created_at", "registrar", "status"],
+        conn.execute(
+            "SELECT registered_domain, created_at, registrar, status, dns_status FROM registrations"
+        ).fetchall(),
+        columns=["registered_domain", "created_at", "registrar", "status", "dns_status"],
     )
     listed = df[df.on_blocklist & df.brand.notna()].drop_duplicates("registered_domain")
     from .features import HOSTING
@@ -165,6 +167,11 @@ def registration_summary(df: pd.DataFrame, conn) -> dict:
         "looked_up": int(len(m)),
         "still_registered": int((m.status == "ok").sum()),
         "already_gone_not_found": int((m.status == "not_found").sum()),
+        # DNS settles it: NXDOMAIN means the domain no longer exists, whatever the registry said
+        "dns_checked": int(m.dns_status.isin(["nxdomain", "exists"]).sum()),
+        "gone_by_dns": int((m.dns_status == "nxdomain").sum()),
+        "registry_not_found_but_resolves": int(((m.status == "not_found") & (m.dns_status == "exists")).sum()),
+        "registered_but_not_resolving": int(((m.status == "ok") & (m.dns_status == "nxdomain")).sum()),
         "age_days_when_seen_listed": {
             "n": int(len(age)),
             "median": round(float(age.median()), 1) if len(age) else None,
@@ -293,6 +300,77 @@ def text_domain_join(texts: dict, df: pd.DataFrame, bl_templates: set) -> dict:
     }
 
 
+def message_triage(conn, df: pd.DataFrame, bl_templates: set) -> dict:
+    """Run the analyst triage (triage.py) on every real delivery-scam text, and on spec-based genuine
+    FedEx notifications as a false-alarm check."""
+    from collections import Counter
+
+    from ..synthetic.genuine import generate
+    from . import texts as tx
+    from .official import SNAPSHOT, official_domains
+    from .stats import wilson
+    from .triage import triage
+
+    rows = conn.execute(
+        """SELECT r.text, r.brand_claimed FROM reports r JOIN sources s ON s.id = r.source_id
+           WHERE s.name = 'smishtank'"""
+    ).fetchall()
+    msgs = tx.message_frame([{"text": t, "brand_claimed": b, "sender": "", "origin": "x"} for t, b in rows])
+    scams = list(msgs[msgs.delivery].text)
+    off = official_domains()
+    real = [triage(t, off, bl_templates) for t in scams]
+    genuine = [triage(g["text"], off, bl_templates) for g in generate()]
+    with_numbers = [r for r in real if r["tracking_numbers"]]
+    fits = [n for r in real for n in r["tracking_numbers"] if n["fits"]]
+
+    def verdicts(res):
+        return dict(Counter(r["verdict"] for r in res))
+
+    examples = []
+    for t, r in list(zip(scams, real, strict=True))[:200]:
+        if len(examples) >= 4:
+            break
+        if r["tracking_numbers"] or (r["brand"] == "FedEx"):
+            examples.append(
+                {
+                    "text": tx.defang_links(t)[:220],
+                    "verdict": r["verdict"],
+                    "score": r["score"],
+                    "reasons": r["reasons"],
+                }
+            )
+    snap = json.loads(SNAPSHOT.read_text()) if SNAPSHOT.exists() else {"brands": {}}
+    return {
+        "real_scams": {
+            "messages": len(real),
+            "verdicts": verdicts(real),
+            "flagged_likely_scam": wilson(sum(r["verdict"] == "likely scam" for r in real), len(real)),
+            "reasons": dict(Counter(x.split(" (")[0] for r in real for x in r["reasons"]).most_common(8)),
+            "with_tracking_like_number": len(with_numbers),
+            "numbers_fitting_a_carrier_format": len(fits),
+            "numbers_passing_check_digit": sum(bool(n["valid_for"]) for n in fits),
+            "numbers_failing_check_digit": sum(all(f["check_digit_ok"] is False for f in n["fits"]) for n in fits),
+            "examples": examples,
+        },
+        "genuine_spec_based": {
+            "messages": len(genuine),
+            "verdicts": verdicts(genuine),
+            "note": "built from FedEx's Track API spec with assumed wording; a sanity check for false alarms, "
+            "not ground truth. Real notifications from a phone are the real test.",
+        },
+        "official_domains": {b: sorted(v) for b, v in off.items()},
+        "dns": {
+            b: {
+                "dmarc_policy": i.get("dmarc_policy"),
+                "spf_strict": i.get("spf_strict"),
+                "domains_from_dns": i.get("dmarc_report_domains", []),
+            }
+            for b, i in snap.get("brands", {}).items()
+        },  # fmt: skip
+        "dns_fetched_at": snap.get("fetched_at"),
+    }
+
+
 def text_mining(conn) -> dict:
     """Real scam texts (SmishTank): lures, campaigns, script reuse, and how their links meet our domain data."""
     from . import texts as tx
@@ -374,12 +452,15 @@ def run(conn) -> dict:
     res["campaigns"] = camp
     if res["texts"]:
         res["texts"]["join"] = text_domain_join(res["texts"], df, bl_templates)
+        res["triage"] = message_triage(conn, df, bl_templates)
     from .stats import wilson
 
     s, rg = res["stream"], res["registrations"]
     res["intervals"] = {
         "queue_likely_scam": wilson(s["review_counts"].get("likely_scam", 0), s["after_stage2_model"]),
-        "blocklisted_already_gone": wilson(rg.get("already_gone_not_found", 0), rg.get("looked_up", 0)),
+        "blocklisted_already_gone": wilson(rg.get("gone_by_dns", 0), rg.get("dns_checked", 0))
+        if rg.get("dns_checked")
+        else wilson(rg.get("already_gone_not_found", 0), rg.get("looked_up", 0)),
     }
     (OUT / "results.json").write_text(json.dumps(res, indent=2, default=str))
     charts(res)

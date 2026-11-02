@@ -72,6 +72,7 @@ def page_data(res: dict) -> dict:
         "texts": res.get("texts") or None,
         "campaigns": res.get("campaigns"),
         "intervals": res.get("intervals"),
+        "triage": res.get("triage"),
     }
 
 

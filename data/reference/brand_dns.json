@@ -1,0 +1,51 @@
+{
+  "fetched_at": "2026-11-02T15:16:42+00:00",
+  "source": "https://dns.google/resolve",
+  "brands": {
+    "FedEx": {
+      "spf": "v=spf1 include:%{ir}.%{v}.%{d}.spf.has.pphosted.com a:smtp-out-colo.dmz.fedex.com  -all",
+      "spf_strict": true,
+      "dmarc_report_domains": [
+        "cargowise.tnt.co.nz",
+        "cargowise.tnt.com.au",
+        "fedexdataworks.com",
+        "fedexfreight.com",
+        "ieepa-refunds.fedex.com",
+        "keepusmoving.com",
+        "nds.fedexfreight.com",
+        "yoursamedaydelivery.com"
+      ],
+      "txt_records": 67,
+      "apex": "fedex.com",
+      "dmarc": "v=DMARC1; p=reject; pct=100; rua=mailto:dmarc_rua@emaildefense.proofpoint.com,mailto:dmarc@fedex.com; ruf=mailto:dmarc_ruf@emaildefense.proofpoint.com,mailto:dmarc@fedex.com; fo=1",
+      "dmarc_policy": "reject"
+    },
+    "UPS": {
+      "spf": "v=spf1 include:%{ir}.%{v}.%{d}.spf.has.pphosted.com include:spf-002b8001.pphosted.com include:spf-002b8002.pphosted.com include:spf-002b8003.pphosted.com include:spf-002b8004.pphosted.com -all",
+      "spf_strict": true,
+      "dmarc_report_domains": [],
+      "txt_records": 32,
+      "apex": "ups.com",
+      "dmarc": "v=DMARC1; p=reject; rua=mailto:dmarc_rua@emaildefense.proofpoint.com;ruf=mailto:dmarc_ruf@emaildefense.proofpoint.com; fo=1",
+      "dmarc_policy": "reject"
+    },
+    "USPS": {
+      "spf": "v=spf1 ip4:56.0.0.0/16 -all",
+      "spf_strict": true,
+      "dmarc_report_domains": [],
+      "txt_records": 11,
+      "apex": "usps.com",
+      "dmarc": "v=DMARC1; p=reject; fo=1; rua=mailto:reports@dmarc.cyber.dhs.gov,mailto:dmarc_rua@emaildefense.proofpoint.com; ruf=mailto:dmarc_ruf@emaildefense.proofpoint.com",
+      "dmarc_policy": "reject"
+    },
+    "DHL": {
+      "spf": "v=spf1 include:dpdhl._spf.dhl.com include:3a._spf.dhl.com include:3b._spf.dhl.com include:3c._spf.dhl.com include:3d._spf.dhl.com include:3e._spf.dhl.com include:3f._spf.dhl.com include:mrsc._spf.dhl.com include:e2ma.net include:spf.mandrillapp.com ~all",
+      "spf_strict": false,
+      "dmarc_report_domains": [],
+      "txt_records": 63,
+      "apex": "dhl.com",
+      "dmarc": "v=DMARC1; p=reject; fo=0; rua=mailto:dmarc-reports@dhl.com;",
+      "dmarc_policy": "reject"
+    }
+  }
+}

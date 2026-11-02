@@ -9,6 +9,7 @@ collect X    run one collector: phishingdb, phishingarmy, openphish, tranco, who
 collect-all  run every keyless collector once, in a sensible order
 report       recompute every result and chart into outputs/ from the database
 dashboard    rebuild dashboard/index.html from outputs/results.json (no database needed)
+reference    refresh each carrier's DNS facts (owned domains, SPF, DMARC) into data/reference/
 watch        keep collecting for --hours: CT log sampling continuously, blocklist and OpenPhish
              snapshots every 30 minutes, new-registration list every 6 hours, RDAP as it goes
 """
@@ -62,7 +63,7 @@ def cmd_synth_a(_conn) -> None:
 
 
 def _collect(conn, name: str, minutes: float) -> None:
-    from .collectors import ctlog, lists, rdap, smishtank
+    from .collectors import ctlog, dnscheck, lists, rdap, smishtank
     from .http import Fetcher
 
     interval = conn.execute("SELECT min_interval_seconds FROM sources WHERE name = %s", (name,)).fetchone()
@@ -78,6 +79,8 @@ def _collect(conn, name: str, minutes: float) -> None:
             lists.collect_whoisds(conn, fetcher)
         elif name == "ctlog":
             ctlog.collect_ctlog(conn, fetcher, minutes=minutes)
+        elif name == "dnscheck":
+            dnscheck.collect_dnscheck(conn, fetcher)
         elif name == "smishtank":
             smishtank.collect_smishtank(conn, fetcher)
         elif name == "rdap":
@@ -95,7 +98,15 @@ def _watch(hours: float, lists_only: bool = False, ct_only: bool = False) -> Non
     every = (
         {}
         if ct_only
-        else {"openphish": 30, "phishingdb": 30, "phishingarmy": 30, "whoisds": 360, "rdap": 15, "smishtank": 180}
+        else {
+            "openphish": 30,
+            "phishingdb": 30,
+            "phishingarmy": 30,
+            "whoisds": 360,
+            "rdap": 15,
+            "smishtank": 180,
+            "dnscheck": 30,
+        }
     )
     last = {name: 0.0 for name in every}
     stop = time.monotonic() + hours * 3600
@@ -119,7 +130,7 @@ def _watch(hours: float, lists_only: bool = False, ct_only: bool = False) -> Non
             time.sleep(60)
 
 
-ORDER = ["phishingdb", "phishingarmy", "openphish", "tranco", "whoisds", "ctlog", "rdap", "smishtank"]
+ORDER = ["phishingdb", "phishingarmy", "openphish", "tranco", "whoisds", "ctlog", "rdap", "dnscheck", "smishtank"]
 
 
 def cmd_report(conn) -> None:
@@ -136,6 +147,13 @@ def cmd_report(conn) -> None:
     )
 
 
+def cmd_reference(conn) -> None:
+    from .analysis.official import refresh
+
+    out = refresh()
+    log("reference", brands={b: i["dmarc_policy"] for b, i in out["brands"].items()})
+
+
 def cmd_dashboard(conn) -> None:
     from .dashboard import build
 
@@ -145,13 +163,14 @@ def cmd_dashboard(conn) -> None:
 COMMANDS = {
     "report": cmd_report,
     "dashboard": cmd_dashboard,
+    "reference": cmd_reference,
     "migrate": cmd_migrate,
     "hello": cmd_hello,
     "status": cmd_status,
     "purge-raw": cmd_purge,
     "synth-a": cmd_synth_a,
 }
-NO_DATABASE = {"synth-a", "dashboard"}
+NO_DATABASE = {"synth-a", "dashboard", "reference"}
 
 
 def main(argv: list[str] | None = None) -> None:

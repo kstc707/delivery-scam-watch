@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-02T05:59:08+00:00",
+  "generated_at": "2026-11-02T15:21:45+00:00",
   "collection": {
     "sources": {
       "ctlog": {
@@ -8,6 +8,13 @@
         "stored": 321,
         "first_run": "2026-11-01 19:15:26.375451+00:00",
         "last_run": "2026-11-01 22:33:53.691699+00:00"
+      },
+      "dnscheck": {
+        "runs": 1,
+        "items_scanned_or_matched": 481,
+        "stored": 0,
+        "first_run": "2026-11-02 15:18:17.705457+00:00",
+        "last_run": "2026-11-02 15:18:17.705457+00:00"
       },
       "openphish": {
         "runs": 9,
@@ -680,6 +687,10 @@
     "looked_up": 350,
     "still_registered": 38,
     "already_gone_not_found": 312,
+    "dns_checked": 350,
+    "gone_by_dns": 332,
+    "registry_not_found_but_resolves": 0,
+    "registered_but_not_resolving": 20,
     "age_days_when_seen_listed": {
       "n": 38,
       "median": 171.1,
@@ -825,8 +836,8 @@
           "recall_at_95_precision": 0.935
         },
         "real+B": {
-          "pr_auc": 0.996,
-          "recall_at_95_precision": 0.995
+          "pr_auc": 0.997,
+          "recall_at_95_precision": 0.993
         }
       },
       {
@@ -870,7 +881,7 @@
       "9erjnxdclxg2cgvtg480y1d2[.]eusps[.]xyz",
       "elb3dok2plslol[.]wusps[.]xyz"
     ],
-    "real_vs_B_auc": 0.454
+    "real_vs_B_auc": 0.453
   },
   "texts": {
     "messages": 1162,
@@ -1381,6 +1392,145 @@
       ]
     }
   },
+  "triage": {
+    "real_scams": {
+      "messages": 185,
+      "verdicts": {
+        "likely scam": 180,
+        "looks genuine": 1,
+        "review": 4
+      },
+      "flagged_likely_scam": {
+        "k": 180,
+        "n": 185,
+        "share": 0.973,
+        "low": 0.938,
+        "high": 0.988
+      },
+      "reasons": {
+        "links to a domain the carriers do not own": 178,
+        "lure: update address": 125,
+        "names USPS but quotes no valid USPS tracking number": 98,
+        "asks to reply or copy the link": 76,
+        "urgency": 36,
+        "names UPS but quotes no valid UPS tracking number": 11,
+        "link matches a blocklisted scam template": 11,
+        "lure: pay a fee": 9
+      },
+      "with_tracking_like_number": 3,
+      "numbers_fitting_a_carrier_format": 4,
+      "numbers_passing_check_digit": 0,
+      "numbers_failing_check_digit": 3,
+      "examples": [
+        {
+          "text": "1 of 2 FRM:japho-Fe d3x[.]ne[.]ws - MSG: Unsuccessful package from 1 April owed to you. Kindly assume ownership and confirm for delivery. (Con't) 2 of 2 hxxps://wwj4w-fedex[.]us/jWXHwj?47965169(End) O?",
+          "verdict": "likely scam",
+          "score": 4,
+          "reasons": [
+            "links to a domain the carriers do not own (2)",
+            "names FedEx but quotes no valid FedEx tracking number"
+          ]
+        },
+        {
+          "text": "FRM:719132-Fed_EX.906697 MSG:flm-;it will be returned to sender, We have made several attempts to reach you, hxxps://jf245-fedex[.]me/y.jDxio?37588372",
+          "verdict": "likely scam",
+          "score": 4,
+          "reasons": [
+            "links to a domain the carriers do not own (1)",
+            "names FedEx but quotes no valid FedEx tracking number"
+          ]
+        },
+        {
+          "text": "Order #113-87368244-001 confirmed! Est. delivery 03/23. Total: $2249.78. Questions? Call 8557672244. Reply STOP to opt-out. Happy shopping!",
+          "verdict": "looks genuine",
+          "score": 0,
+          "reasons": []
+        },
+        {
+          "text": "Hello <name>, your FEDEX package with tracking code GB-6412-GH83 is waiting for you to set delivery preferences: e3fmr[.]info/onAyXsVfomA",
+          "verdict": "likely scam",
+          "score": 4,
+          "reasons": [
+            "links to a domain the carriers do not own (1)",
+            "names FedEx but quotes no valid FedEx tracking number"
+          ]
+        }
+      ]
+    },
+    "genuine_spec_based": {
+      "messages": 200,
+      "verdicts": {
+        "looks genuine": 200
+      },
+      "note": "built from FedEx's Track API spec with assumed wording; a sanity check for false alarms, not ground truth. Real notifications from a phone are the real test."
+    },
+    "official_domains": {
+      "FedEx": [
+        "fedex.ca",
+        "fedex.co.uk",
+        "fedex.com",
+        "fedexcup.com",
+        "fedexdataworks.com",
+        "fedexfield.com",
+        "fedexforum.com",
+        "fedexfreight.com",
+        "keepusmoving.com",
+        "tnt.co.nz",
+        "tnt.com.au",
+        "yoursamedaydelivery.com"
+      ],
+      "UPS": [
+        "theupsstore.com",
+        "ups.ca",
+        "ups.co.uk",
+        "ups.com"
+      ],
+      "USPS": [
+        "uspis.gov",
+        "usps.com",
+        "usps.gov",
+        "uspsoig.gov"
+      ],
+      "DHL": [
+        "dhl.co.uk",
+        "dhl.com",
+        "dhl.de",
+        "dhlparcel.co.uk"
+      ]
+    },
+    "dns": {
+      "FedEx": {
+        "dmarc_policy": "reject",
+        "spf_strict": true,
+        "domains_from_dns": [
+          "cargowise.tnt.co.nz",
+          "cargowise.tnt.com.au",
+          "fedexdataworks.com",
+          "fedexfreight.com",
+          "ieepa-refunds.fedex.com",
+          "keepusmoving.com",
+          "nds.fedexfreight.com",
+          "yoursamedaydelivery.com"
+        ]
+      },
+      "UPS": {
+        "dmarc_policy": "reject",
+        "spf_strict": true,
+        "domains_from_dns": []
+      },
+      "USPS": {
+        "dmarc_policy": "reject",
+        "spf_strict": true,
+        "domains_from_dns": []
+      },
+      "DHL": {
+        "dmarc_policy": "reject",
+        "spf_strict": false,
+        "domains_from_dns": []
+      }
+    },
+    "dns_fetched_at": "2026-11-02T15:16:42+00:00"
+  },
   "intervals": {
     "queue_likely_scam": {
       "k": 35,
@@ -1390,11 +1540,11 @@
       "high": 0.847
     },
     "blocklisted_already_gone": {
-      "k": 312,
+      "k": 332,
       "n": 350,
-      "share": 0.891,
-      "low": 0.854,
-      "high": 0.92
+      "share": 0.949,
+      "low": 0.92,
+      "high": 0.967
     }
   }
 }

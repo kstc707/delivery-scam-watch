@@ -25,7 +25,7 @@ recomputes the report, rebuilds the dashboard and commits both. It needs one rep
 | How many reach the analyst? | **47** after the brand-word rule and a cloud-infrastructure filter (about **198 → 15 analyst hours a month**, at 5 minutes per review) |
 | Are they real? | Name-only review: **35 likely scams**, 9 unsure, 3 legitimate (74% likely scams) |
 | Are they already blocked? | **None of the 35** is on any of the blocklists we read |
-| Do blocklists act in time? | Of 350 blocklisted brand domains we looked up, **312 (89%, 95% CI 85–92%) no longer exist** at the registry, so by listing time the campaign has often moved on |
+| Do blocklists act in time? | Of 350 blocklisted brand domains we looked up, **332 (95%, 95% CI 92–97%) no longer exist**: the registry record was checked, then confirmed with DNS (the name no longer resolves). By listing time the campaign has often moved on |
 | Campaigns | Found by code, not by eye: **22 of the 47** names in the queue belong to 4 template campaigns; one registrar (Dominet (HK) Limited) is behind 17 of them across 3 templates |
 
 ### How good is the detector, honestly?
@@ -74,6 +74,31 @@ and dates from RDAP (`analysis/campaigns.py`). No pattern list is typed in by ha
   `usps.com-track*.top`, has 842 names.
 - In the review, 22 of 22 campaign names were likely scams against 13 of 25 other names (Fisher's
   exact test, p < 0.001). The same reviewer saw the names, so this shows consistency, not proof.
+
+### What an analyst would see for each message (carrier-grounded triage)
+
+`analysis/triage.py` turns a message into one record: links checked against the domains each carrier
+really owns, tracking numbers checked against the carrier's real format and check digit, phone
+numbers, the lure, and a score built from named reasons (the table is in the module's docstring).
+The rules rest on public carrier facts:
+
+- **Tracking-number formats and check digits** for FedEx (7 formats), UPS, USPS and DHL, from the MIT
+  `tracking_number_data` project; all 137 of its published test numbers are read correctly.
+- **The carriers' own DNS:** all four publish DMARC `p=reject` (email faking their real domain is
+  discarded, which pushes scammers to lookalike domains and texts). FedEx's DNS also names related
+  domains it owns (fedexfreight.com, fedexdataworks.com, keepusmoving.com, ...); they extend the allowlist.
+- **FedEx's Track API specification** (developer.fedex.com): the four notification events (tender,
+  estimated delivery, exception, delivery), status codes, and a genuine customs-fee note.
+
+Results:
+- **180 of 185** real delivery-scam texts are scored "likely scam" (97%, 95% CI 94–99%); 4 go to
+  review; 1 passes as genuine: a "call this number about your order" text with no link. Phone
+  callback scams are a known gap.
+- **Only 3 of 185** scam texts quote anything shaped like a tracking number, and none passes its
+  carrier's check digit. Genuine notifications are built around a real number.
+- **0 of 200** genuine-style FedEx notifications (built from the spec, including hard cases about
+  address problems and customs fees) are flagged. This is a sanity check, not proof: the wording is
+  assumed, so real notifications from a phone are the real test.
 
 ### Statistics behind the headlines
 
@@ -139,6 +164,9 @@ Numbers come from `python -m scamwatch report` → `outputs/results.json` and th
 | Tranco top 1M | popular, legitimate sites | no |
 | RDAP via the IANA bootstrap | registration date, registrar, whether it still exists | no |
 | SmishTank (Timko & Rahman, Smishing Dataset I, ACM CODASPY 2024) | real reported scam texts with sender and link; research CSV + newest-100 feed | no |
+| Google Public DNS (DNS over HTTPS) | confirms whether a domain still exists; carriers' SPF/DMARC records | no |
+| tracking_number_data (MIT) | carrier tracking-number formats and check digits | no |
+| FedEx Track API specification (developer.fedex.com) | notification events and status codes (facts cited, file not copied) | no |
 
 ## Layout
 
@@ -159,13 +187,19 @@ scamwatch/
   analysis/texts.py        text mining: link extraction, lures, campaigns, script reuse
   analysis/campaigns.py    data mining: domain templates, campaigns, registrars
   analysis/stats.py        Wilson intervals, chi-square and Fisher's exact tests
+  analysis/tracking.py     tracking-number extraction and check digits (carrier formats)
+  analysis/official.py     carriers' owned domains, SPF and DMARC from public DNS
+  analysis/triage.py       one analyst record per message, with named reasons
+  synthetic/genuine.py     FedEx-style notifications built from FedEx's Track API spec
+  collectors/dnscheck.py   confirms with DNS whether registered domains still exist
   analysis/report.py       every number and chart in outputs/
   cli.py                   python -m scamwatch ...
-db/migrations/             0001_init.sql, 0002_keyless_sources.sql, 0003_smishtank.sql (never edit an applied file)
+db/migrations/             0001 ... 0004_dns_check.sql (never edit an applied file)
+data/reference/            public carrier facts: tracking formats (MIT), carrier DNS snapshot
 data/synthetic/            generator A output (frozen)
 data/review/               name-only review of the flagged stream domains
 dashboard/index.html       static dashboard snapshot
-tests/                     pytest, 83 tests
+tests/                     pytest, 88 tests
 ```
 
 ## Run it

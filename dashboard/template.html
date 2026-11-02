@@ -148,7 +148,7 @@ footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line)
   <section aria-labelledby="find-h">
     <h2 id="find-h">What the data shows</h2>
     <div class="findings">
-      <div><span class="stat num" id="f1"></span><span class="ci" id="f1ci"></span><h3>Scam domains die fast</h3><p>Most blocklisted delivery-scam domains we looked up no longer exist in the registry. By the time a domain reaches a blocklist, the campaign has often moved on, so the useful moment to act is when the domain is registered or gets its certificate.</p></div>
+      <div><span class="stat num" id="f1"></span><span class="ci" id="f1ci"></span><h3>Scam domains die fast</h3><p>Most blocklisted delivery-scam domains we looked up no longer exist (registry record checked, then confirmed with DNS: the name no longer resolves). By the time a domain reaches a blocklist, the campaign has often moved on, so the useful moment to act is when the domain is registered or gets its certificate.</p></div>
       <div><span class="stat num" id="f2"></span><h3>The subdomain trick dominates</h3><p>Most real scam names put the brand in front of an unrelated domain, like usps.com-trackdqf[.]top: on a phone screen, only the first part shows.</p></div>
       <div><span class="stat num" id="f3"></span><h3>Analyst time, before and after</h3><p>Hours a month to check every new brand-keyword domain, against checking only what the rule and model flag (five minutes per domain, an assumption).</p></div>
       <div><span class="stat num">$470M</span><h3>Why it matters</h3><p>Reported US losses to text-message scams in 2024; fake package delivery was the most reported type (<a href="https://www.ftc.gov/news-events/news/press-releases/2025/04/new-ftc-data-show-top-text-message-scams-2024-overall-losses-text-scams-hit-470-million">FTC, April 2025</a>). The FTC does not split losses by scam type, so this monitor reports operational numbers rather than a dollar figure.</p></div>
@@ -177,6 +177,26 @@ footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line)
     <div class="panel">
       <h3>Do the links in texts look like the domains on blocklists?</h3>
       <p id="j-p"></p>
+    </div>
+  </section>
+
+  <section aria-labelledby="tri-h">
+    <span class="eyebrow">FedEx-grounded triage · carrier specs, carrier DNS, check digits</span>
+    <h2 id="tri-h">What an analyst would see for each message</h2>
+    <p>Every message is turned into one record: its links checked against the domains each carrier really owns (read from the carriers' own DNS), any tracking number checked against the carrier's real format and check digit, the lure, and a score made of named reasons. The rules come from public carrier facts: FedEx's Track API specification, the carriers' DNS records, and published tracking-number formats.</p>
+    <div class="findings">
+      <div><span class="stat num" id="tr-flag"></span><span class="ci" id="tr-flag-ci"></span><h3>Real scam texts flagged</h3><p id="tr-flag-p"></p></div>
+      <div><span class="stat num" id="tr-num"></span><h3>Scam texts quoting a tracking number</h3><p id="tr-num-p"></p></div>
+      <div><span class="stat num" id="tr-gen"></span><h3>False alarms on genuine-style notifications</h3><p id="tr-gen-p"></p></div>
+      <div><span class="stat num">4 of 4</span><h3>Carriers that reject spoofed email</h3><p id="tr-dns-p"></p></div>
+    </div>
+    <div class="panel">
+      <h3>Why messages were flagged</h3>
+      <div class="tablewrap"><table><thead><tr><th>Reason</th><th>Real scam texts</th></tr></thead><tbody id="tr-reasons"></tbody></table></div>
+    </div>
+    <div class="panel">
+      <h3>Example records</h3>
+      <div class="tablewrap"><table><thead><tr><th>Message (links defanged)</th><th>Verdict</th><th>Reasons</th></tr></thead><tbody id="tr-ex"></tbody></table></div>
     </div>
   </section>
 
@@ -256,7 +276,7 @@ $("k1d").textContent = s.days_covered;
 $("k2").textContent = pct(1 - s.after_stage2_model / s.keyword_domains);
 $("k2a").textContent = s.keyword_domains;
 $("k2b").textContent = s.after_stage2_model;
-const gone = D.regs.already_gone_not_found / D.regs.looked_up;
+const gone = (D.intervals && D.intervals.blocklisted_already_gone && D.intervals.blocklisted_already_gone.share != null) ? D.intervals.blocklisted_already_gone.share : D.regs.already_gone_not_found / D.regs.looked_up;
 $("k3").textContent = pct(gone);
 $("k4").textContent = D.labelled.brand_scope.scam.toLocaleString("en-US");
 $("f1").textContent = pct(gone) + " gone";
@@ -404,4 +424,22 @@ if (T && T.tests) {
 if (C) { const tc = C.new_domains.test_campaign_vs_review; rows.push(["Are campaign names more often likely scams?", `${C.new_domains.likely_scam_in_campaign.k}/${C.new_domains.likely_scam_in_campaign.n} vs ${C.new_domains.likely_scam_not_in_campaign.k}/${C.new_domains.likely_scam_not_in_campaign.n}`, `${tc.test}, ${ptxt(tc.p_value)}`, "Consistent, but the review is not independent"]); }
 if (D.intervals) rows.push(["How many queue names are likely scams?", `${pct(D.intervals.queue_likely_scam.share)}`, ci(D.intervals.queue_likely_scam), "A wide range: the queue is small"]);
 $("tests").innerHTML = rows.map(r => `<tr>${r.map((c, i) => `<td${i === 0 ? ' style="white-space:normal;min-width:200px"' : i === 3 ? ' style="white-space:normal"' : ""}>${c}</td>`).join("")}</tr>`).join("");
+// triage
+const TR = D.triage;
+if (TR) {
+  const r = TR.real_scams, g = TR.genuine_spec_based;
+  $("tr-flag").textContent = `${r.flagged_likely_scam.k} of ${r.messages}`;
+  $("tr-flag-ci").textContent = ci(r.flagged_likely_scam);
+  const missed = r.verdicts["looks genuine"] || 0, rev = r.verdicts.review || 0;
+  $("tr-flag-p").textContent = `scored "likely scam"; ${rev} went to review and ${missed} passed as genuine (a call-this-number message with no link: phone callback scams are a known gap).`;
+  $("tr-num").textContent = `${r.with_tracking_like_number} of ${r.messages}`;
+  $("tr-num-p").textContent = `Real scam texts almost never quote a tracking number. Of the numbers that fit a carrier's format, ${r.numbers_passing_check_digit} pass its check digit and ${r.numbers_failing_check_digit} fail it. Genuine notifications are built around a real number, so "names a carrier, no valid number" is a cheap, explainable signal.`;
+  $("tr-gen").textContent = `${(g.verdicts["likely scam"] || 0) + (g.verdicts.review || 0)} of ${g.messages}`;
+  $("tr-gen-p").textContent = `FedEx-style notifications built from FedEx's Track API spec (four real event types, valid check-digit numbers, official links), including hard cases about address problems and customs fees. A sanity check only: the wording is assumed, so real notifications are the real test.`;
+  const fx = TR.dns.FedEx || {};
+  $("tr-dns-p").textContent = `FedEx, UPS, USPS and DHL all publish DMARC p=reject: email faking their real domains is thrown away, which is why scammers use lookalike domains and texts. FedEx's DNS also names related domains it owns (${(fx.domains_from_dns || []).slice(0, 4).join(", ")}…), now part of the allowlist.`;
+  $("tr-reasons").innerHTML = Object.entries(r.reasons).map(([k, v]) => `<tr><td style="white-space:normal">${k}</td><td class="n">${v}</td></tr>`).join("");
+  const esc = s => s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+  $("tr-ex").innerHTML = r.examples.map(e => `<tr><td class="ex">${esc(e.text)}</td><td>${e.verdict} (${e.score})</td><td style="white-space:normal;min-width:220px">${e.reasons.join("; ")}</td></tr>`).join("");
+}
 </script>
