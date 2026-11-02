@@ -7,8 +7,15 @@ fresh website certificates), spots the ones that impersonate FedEx, UPS, USPS or
 scam **texts** themselves for links, lures and repeated scripts, and gives an analyst a short list
 to review **before** public blocklists catch up.
 
-Everything runs on real, public, keyless data. Dashboard: `dashboard/index.html` (a static
-snapshot, open it in a browser).
+Everything runs on real, public, keyless data.
+
+**Live dashboard: https://delivery-scam-watch.vercel.app** (built from `dashboard/template.html` and
+`outputs/results.json` by `python -m scamwatch dashboard`; Vercel redeploys on every push).
+
+**Running in the cloud:** `.github/workflows/collect.yml` collects for 45 minutes every 3 hours,
+recomputes the report, rebuilds the dashboard and commits both. It needs one repository secret,
+`DATABASE_URL` (a hosted Postgres such as Neon); on its first run it loads the seed snapshot in
+`data/seed/` so no history is lost.
 
 ## Results (data as of 2026-11-02, 8 days of new-domain data)
 
@@ -155,9 +162,9 @@ cp .env.example .env                       # DATABASE_URL, TEST_DATABASE_URL
 | urlscan.io (free key) | page screenshots and hosting details, so a review sees the page, not only the name |
 | URLhaus, PhishTank | more confirmations, faster lead-time measurement |
 | Reddit app | more and fresher scam texts (SmishTank's feed shows only the newest 100) |
-| Neon (Postgres) | hosted database |
-| GitHub Actions | scheduled collectors (secrets in GitHub Secrets) |
-| Vercel | live Next.js dashboard reading Neon |
+| Neon (Postgres) | hosted database for the scheduled job (`DATABASE_URL` secret) |
+| GitHub Actions | scheduled collection, report and dashboard refresh (`collect.yml`, built) |
+| Vercel | live dashboard (built, static; redeploys from `main`) |
 
 ## Ground rules
 
