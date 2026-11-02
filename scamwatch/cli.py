@@ -8,6 +8,7 @@ synth-a      write generator A's frozen synthetic data to data/synthetic/ (no da
 collect X    run one collector: phishingdb, phishingarmy, openphish, tranco, whoisds, ctlog, rdap
 collect-all  run every keyless collector once, in a sensible order
 report       recompute every result and chart into outputs/ from the database
+dashboard    rebuild dashboard/index.html from outputs/results.json (no database needed)
 watch        keep collecting for --hours: CT log sampling continuously, blocklist and OpenPhish
              snapshots every 30 minutes, new-registration list every 6 hours, RDAP as it goes
 """
@@ -135,15 +136,22 @@ def cmd_report(conn) -> None:
     )
 
 
+def cmd_dashboard(conn) -> None:
+    from .dashboard import build
+
+    log("dashboard", page=build())
+
+
 COMMANDS = {
     "report": cmd_report,
+    "dashboard": cmd_dashboard,
     "migrate": cmd_migrate,
     "hello": cmd_hello,
     "status": cmd_status,
     "purge-raw": cmd_purge,
     "synth-a": cmd_synth_a,
 }
-NO_DATABASE = {"synth-a"}
+NO_DATABASE = {"synth-a", "dashboard"}
 
 
 def main(argv: list[str] | None = None) -> None:

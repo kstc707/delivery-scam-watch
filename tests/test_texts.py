@@ -129,3 +129,14 @@ def test_message_frame_flags():
     assert df.reply_trick.iloc[0] and df.link_has_brand.iloc[0] and not df.link_has_brand.iloc[1]
     assert df.shortener.iloc[1] and df.country.iloc[0] == "+44"
     assert isinstance(df, pd.DataFrame)
+
+
+def test_dashboard_builds_from_committed_results(tmp_path, monkeypatch):
+    from scamwatch import dashboard
+
+    page = tmp_path / "index.html"
+    monkeypatch.setattr(dashboard, "PAGE", page)
+    dashboard.build()
+    html = page.read_text()
+    assert "__DATA__" not in html and '"texts":' in html
+    assert "</script>" in html and html.count("<script") == html.count("</script>")
