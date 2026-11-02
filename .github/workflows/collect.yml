@@ -41,6 +41,14 @@ jobs:
           python-version: "3.12"
       - if: steps.check.outputs.ok == 'true'
         run: pip install -e .
+      - name: Seed an empty database (first run only)
+        if: steps.check.outputs.ok == 'true'
+        run: |
+          has=$(psql "$DATABASE_URL" -Atc "SELECT to_regclass('public.schema_migrations') IS NOT NULL")
+          if [ "$has" = "t" ]; then echo "database already has data"; exit 0; fi
+          seed=$(ls data/seed/*.sql.gz | sort | tail -1)
+          echo "loading $seed"
+          gunzip -c "$seed" | psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q
       - if: steps.check.outputs.ok == 'true'
         run: python -m scamwatch migrate
       - name: Collect
