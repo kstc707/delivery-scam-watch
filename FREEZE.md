@@ -6,7 +6,10 @@ domains and texts look like. `tests/test_generator_a.py` regenerates the data an
 with the checksums below; any later edit to generator A fails the tests. Improvements go into
 generator B, which is fitted to real data.
 
-- Frozen: 2026-11-01 in commit fc18a8b ("freeze generator A"), before any collector existed. Local Git tag `generator-a-frozen` (this environment cannot push tags; push it when the project moves to its own repository)
+- Frozen: 2026-11-01 in commit bb2e3fc ("freeze generator A"), before any collector existed; Git tag
+  `generator-a-frozen`. The project was first built inside another repository, where the same commit
+  was fc18a8b; its history was moved here unchanged (same content, dates and order), so the freeze
+  still comes before the collectors commit (b428e21).
 - Seed: 20261101
 
 | File | Rows | Checksum |

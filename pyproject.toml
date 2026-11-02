@@ -8,13 +8,19 @@ dependencies = [
     "pydantic-settings>=2.4",   # settings from .env / environment
     "pyyaml>=6.0",              # config/brands.yaml
     "tldextract>=5.1",          # registered domain + public suffix (offline list, no network)
+    "httpx>=0.27",              # polite HTTP fetcher for every collector
+    "cryptography>=43",         # decoding certificates from the CT log
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "scikit-learn>=1.5",        # detector, TF-IDF text clustering
+    "matplotlib>=3.9",          # report charts
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
 
-[tool.setuptools]
-packages = ["scamwatch"]
+[tool.setuptools.packages.find]
+include = ["scamwatch*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
