@@ -84,6 +84,7 @@ tr.series td.d { color: var(--signal); }
 .findings div { border-top: 2px solid var(--ink); padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
 @media (max-width: 680px) { .findings { grid-template-columns: minmax(0, 1fr); } }
 .stat { font: 800 26px var(--display); }
+.ci { font: 500 12px var(--mono); color: var(--muted); }
 ul.flat { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; max-width: 72ch; }
 pre { margin: 0; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; overflow-x: auto; font: 13px var(--mono); }
 footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 6px; }
@@ -111,7 +112,7 @@ footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line)
   <section aria-labelledby="live-h">
     <span class="eyebrow">Live findings · WhoisDS new registrations and Certificate Transparency log</span>
     <h2 id="live-h">What the monitor found this week</h2>
-    <p>Every new domain that names a delivery brand as a word, scored by the detector and checked in a name-only review. Campaign series stand out: the same brand plus a few random letters, registered day after day. Names are defanged so none can be clicked.</p>
+    <p>Every new domain that names a delivery brand as a word, scored by the detector and checked in a name-only review. Names marked with a campaign were grouped by the code (next section), not picked by hand. Names are defanged so none can be clicked.</p>
     <div class="panel">
       <div class="controls">
         <label for="filter">Show</label>
@@ -123,15 +124,31 @@ footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line)
         </select>
         <span class="small" id="count"></span>
       </div>
-      <div class="tablewrap"><table><thead><tr><th>Domain</th><th>Brand</th><th>First seen</th><th>Model score</th><th>Review</th></tr></thead><tbody id="rows"></tbody></table></div>
+      <div class="tablewrap"><table><thead><tr><th>Domain</th><th>Campaign</th><th>Brand</th><th>First seen</th><th>Model score</th><th>Review</th></tr></thead><tbody id="rows"></tbody></table></div>
       <p class="small" id="registrar"></p>
+    </div>
+  </section>
+
+  <section aria-labelledby="camp-h">
+    <span class="eyebrow">Data mining · template campaigns found by code</span>
+    <h2 id="camp-h">Campaigns the code found</h2>
+    <p>Scam kits stamp out names from one template: same brand, same ending, random letters in between. The code reduces every name to its template (<span class="mono">fedex-vipbtb[.]shop → fedex-*[.]shop</span>), groups names that share one, and adds who registered them and when (registry RDAP). No list of patterns is typed in by hand.</p>
+    <div class="findings">
+      <div><span class="stat num" id="c-new"></span><h3>New names that belong to a campaign</h3><p id="c-new-p"></p></div>
+      <div><span class="stat num" id="c-bl"></span><h3>Known scams that come from templates</h3><p id="c-bl-p"></p></div>
+    </div>
+    <div class="panel">
+      <h3>Campaigns among this week's new domains</h3>
+      <div class="tablewrap"><table><thead><tr><th>Template</th><th>Names</th><th>Days active</th><th>Registrar (RDAP)</th><th>Same template on blocklists</th></tr></thead><tbody id="camprows"></tbody></table></div>
+      <p class="small" id="c-op"></p>
+      <p class="small" id="c-test"></p>
     </div>
   </section>
 
   <section aria-labelledby="find-h">
     <h2 id="find-h">What the data shows</h2>
     <div class="findings">
-      <div><span class="stat num" id="f1"></span><h3>Scam domains die fast</h3><p>Most blocklisted delivery-scam domains we looked up no longer exist in the registry. By the time a domain reaches a blocklist, the campaign has often moved on, so the useful moment to act is when the domain is registered or gets its certificate.</p></div>
+      <div><span class="stat num" id="f1"></span><span class="ci" id="f1ci"></span><h3>Scam domains die fast</h3><p>Most blocklisted delivery-scam domains we looked up no longer exist in the registry. By the time a domain reaches a blocklist, the campaign has often moved on, so the useful moment to act is when the domain is registered or gets its certificate.</p></div>
       <div><span class="stat num" id="f2"></span><h3>The subdomain trick dominates</h3><p>Most real scam names put the brand in front of an unrelated domain, like usps.com-trackdqf[.]top: on a phone screen, only the first part shows.</p></div>
       <div><span class="stat num" id="f3"></span><h3>Analyst time, before and after</h3><p>Hours a month to check every new brand-keyword domain, against checking only what the rule and model flag (five minutes per domain, an assumption).</p></div>
       <div><span class="stat num">$470M</span><h3>Why it matters</h3><p>Reported US losses to text-message scams in 2024; fake package delivery was the most reported type (<a href="https://www.ftc.gov/news-events/news/press-releases/2025/04/new-ftc-data-show-top-text-message-scams-2024-overall-losses-text-scams-hit-470-million">FTC, April 2025</a>). The FTC does not split losses by scam type, so this monitor reports operational numbers rather than a dollar figure.</p></div>
@@ -143,10 +160,10 @@ footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line)
     <h2 id="txt-h">What the scam texts say</h2>
     <p>Domains are only half the picture: the text message is what reaches the customer. I mined <span id="t-n"></span> real scam texts reported by the public (SmishTank research dataset plus its live feed), kept the <span id="t-del"></span> that pose as a delivery, pulled out every link (including ones written to dodge filters, like <span class="mono">shm.to/ IRSDocs</span>), tagged the story each one tells, and grouped copies of the same script.</p>
     <div class="findings">
-      <div><span class="stat num" id="t-reuse"></span><h3>Scripts repeat, domains don't</h3><p id="t-reuse-p"></p></div>
-      <div><span class="stat num" id="t-brand"></span><h3>Most links don't name the brand</h3><p>Share of delivery-scam links whose domain names the carrier at all. A monitor that only watches brand-named domains, like the one above, would miss the rest; the message text is what gives them away.</p></div>
-      <div><span class="stat num" id="t-reply"></span><h3>"Reply Y, then open the link"</h3><p>Share of delivery-scam texts that ask the reader to reply or copy the link, a trick to switch on links that the phone disabled for an unknown sender. Our assumptions (generator A) had <span id="t-reply-a"></span>.</p></div>
-      <div><span class="stat num" id="t-addr"></span><h3>The lure is the address, not the fee</h3><p id="t-addr-p"></p></div>
+      <div><span class="stat num" id="t-reuse"></span><span class="ci" id="t-reuse-ci"></span><h3>Scripts repeat, domains don't</h3><p id="t-reuse-p"></p></div>
+      <div><span class="stat num" id="t-brand"></span><span class="ci" id="t-brand-ci"></span><h3>Most links don't name the brand</h3><p>Share of delivery-scam links whose domain names the carrier at all. A monitor that only watches brand-named domains, like the one above, would miss the rest; the message text is what gives them away.</p></div>
+      <div><span class="stat num" id="t-reply"></span><span class="ci" id="t-reply-ci"></span><h3>"Reply Y, then open the link"</h3><p>Share of delivery-scam texts that ask the reader to reply or copy the link, a trick to switch on links that the phone disabled for an unknown sender. Our assumptions (generator A) had <span id="t-reply-a"></span>.</p></div>
+      <div><span class="stat num" id="t-addr"></span><span class="ci" id="t-addr-ci"></span><h3>The lure is the address, not the fee</h3><p id="t-addr-p"></p></div>
     </div>
     <div class="panel">
       <div class="legend"><span><i style="background:var(--signal)"></i>real delivery-scam texts</span><span><i style="background:var(--neutral)"></i>our assumption (generator A)</span></div>
@@ -157,6 +174,17 @@ footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line)
       <div class="tablewrap"><table><thead><tr><th>Texts</th><th>Distinct domains</th><th>Brand</th><th>Active</th><th>Example (links defanged)</th></tr></thead><tbody id="camps"></tbody></table></div>
       <p class="small">Same script, new domain almost every time: blocking domains one by one is whack-a-mole, while the wording stays put. Sender numbers: <span id="t-senders"></span></p>
     </div>
+    <div class="panel">
+      <h3>Do the links in texts look like the domains on blocklists?</h3>
+      <p id="j-p"></p>
+    </div>
+  </section>
+
+  <section aria-labelledby="stat-h">
+    <span class="eyebrow">Statistics · how sure each number is</span>
+    <h2 id="stat-h">Tests behind the headlines</h2>
+    <p>Ranges are 95% Wilson intervals: where the true share probably lies, given how many items it rests on. Differences between groups use a chi-square test (Fisher's exact test for small 2×2 tables); the p-value is the chance of a difference this large if the groups really had the same mix, and Cramér's V says how big the difference is (0 none, 1 complete).</p>
+    <div class="tablewrap"><table><thead><tr><th>Question</th><th>Result</th><th>Test</th><th>Read it as</th></tr></thead><tbody id="tests"></tbody></table></div>
   </section>
 
   <section aria-labelledby="pat-h">
@@ -249,16 +277,15 @@ const regs = Object.entries(D.regs.top_registrars_stream);
 if (regs.length) $("registrar").textContent = `Registrar concentration among new brand domains: ${regs[0][0]} handled ${regs[0][1]} of them, a lead for a registrar abuse report.`;
 
 // live table
-const SERIES = [/^fedex-vip[a-z]+\[\.\]shop$/, /^fedex[a-z]{2,3}\[\.\]com$/, /^dhl[a-z]{3,5}\[\.\]cc$/, /^[a-z]{3}dhl\[\.\]cc$/];
 const LABEL = { likely_scam: ["likely scam", "warn"], unsure: ["unsure", "grey"], legitimate: ["legitimate", "real"], not_reviewed: ["not reviewed", "grey"] };
 function renderRows() {
   const f = $("filter").value;
   const rows = D.rows.filter(r => f === "all" || r.r === f);
   $("count").textContent = `${rows.length} of ${D.rows.length} domains`;
   $("rows").innerHTML = rows.map(r => {
-    const series = SERIES.some(re => re.test(r.d));
+    const series = !!r.c;
     const [lab, cls] = LABEL[r.r] || LABEL.not_reviewed;
-    return `<tr class="${series ? "series" : ""}"><td class="d">${r.d}${series ? " ·series" : ""}</td><td>${r.b}</td><td class="mono">${r.t}</td><td class="n">${r.s.toFixed(2)}</td><td><span class="pill ${cls}">${lab}</span></td></tr>`;
+    return `<tr class="${series ? "series" : ""}"><td class="d">${r.d}</td><td class="mono">${r.c || ""}</td><td>${r.b}</td><td class="mono">${r.t}</td><td class="n">${r.s.toFixed(2)}</td><td><span class="pill ${cls}">${lab}</span></td></tr>`;
   }).join("");
 }
 $("filter").addEventListener("change", renderRows);
@@ -337,4 +364,44 @@ if (T) {
   });
   const svg = $("lurechart"); svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.innerHTML = g;
 }
+// confidence ranges, campaigns, join, tests
+const ci = w => w && w.n ? `95% CI ${Math.round(w.low * 100)}–${Math.round(w.high * 100)}% · ${w.k} of ${w.n}` : "";
+const ptxt = p => p == null ? "not tested" : p < 0.001 ? "p < 0.001" : p < 0.01 ? `p = ${p.toFixed(3)}` : `p = ${p.toFixed(2)}`;
+if (D.intervals) $("f1ci").textContent = ci(D.intervals.blocklisted_already_gone);
+if (T && T.intervals) {
+  $("t-reuse-ci").textContent = ci(T.intervals.later_reuse_known_script);
+  $("t-brand-ci").textContent = ci(T.intervals.link_contains_brand);
+  $("t-reply-ci").textContent = ci(T.intervals.reply_trick);
+  $("t-addr-ci").textContent = ci(T.intervals.lure_update_address);
+}
+const C = D.campaigns;
+if (C) {
+  const nd = C.new_domains, bl = C.blocklisted;
+  $("c-new").textContent = `${nd.in_campaigns} of ${nd.names}`;
+  $("c-new-p").textContent = `This week's brand-named new domains fall into ${nd.campaigns.length} templates of 3 or more names; the rest look like one-offs.`;
+  $("c-bl").textContent = pct(bl.in_templates / bl.names);
+  $("c-bl-p").textContent = `of ${bl.names.toLocaleString("en-US")} blocklisted delivery scams belong to ${bl.templates} templates; the largest, ${bl.top[0].label}, has ${bl.top[0].names} names.`;
+  $("camprows").innerHTML = nd.campaigns.map(c => `<tr><td class="d">${c.label}</td><td class="n">${c.names}</td><td class="n">${c.days}</td><td>${Object.entries(c.registrars).map(([k, v]) => `${k} (${v})`).join(", ") || "not looked up"}</td><td class="n">${c.same_template_blocklisted}</td></tr>`).join("");
+  const ops = Object.entries(nd.operators);
+  $("c-op").textContent = ops.length ? ops.map(([reg, o]) => `One registrar, ${reg}, handled ${o.names} names across ${o.templates.length} templates (${o.templates.join(", ")}): likely one operator, and one abuse report covers all of them.`).join(" ") : "";
+  const tc = nd.test_campaign_vs_review, a = nd.likely_scam_in_campaign, b = nd.likely_scam_not_in_campaign;
+  $("c-test").textContent = `In the review, ${a.k} of ${a.n} campaign names were likely scams against ${b.k} of ${b.n} other names (${tc.test}, ${ptxt(tc.p_value)}). Caveat: the same reviewer saw the names, so this shows consistency, not independent proof.`;
+}
+if (T && T.join) {
+  const j = T.join.endings_texts_vs_blocklist, cats = j.categories, a = j.counts["text-message links"], b = j.counts["blocklisted scams"];
+  const sh = (arr, k) => { const i = cats.indexOf(k); return i < 0 ? 0 : arr[i] / arr.reduce((x, y) => x + y, 0); };
+  const m = T.join.link_template_seen_on_blocklist;
+  $("j-p").textContent = `Not much. ${pct(sh(a, "com"))} of links in scam texts end in .com against ${pct(sh(b, "com"))} of blocklisted scam domains, and .top is ${pct(sh(a, "top"))} against ${pct(sh(b, "top"))} (${j.test}, ${ptxt(j.p_value)}, Cramér's V ${j.cramers_v}). Only ${m.k} of ${m.n} text links share a template with a blocklisted campaign. The domains that blocklists collect and the links people actually receive are different populations, which is why this project watches both. (Texts are mostly 2022–23, blocklists are current; part of the gap is time.)`;
+}
+const rows = [];
+if (T && T.tests) {
+  const ga = T.tests.lures_real_vs_generator_a;
+  if (ga) rows.push(["Do real lures match our assumed lures?", `address ${pct(T.lures["update address"] || 0)} vs ${pct(T.generator_a.lures["update address"] || 0)}; fee ${pct(T.lures["pay a fee"] || 0)} vs ${pct(T.generator_a.lures["pay a fee"] || 0)}`, `${ga.test}, ${ptxt(ga.p_value)}, V = ${ga.cramers_v}`, "Large, real difference: the guess was wrong"]);
+  const yr = T.tests.lures_2022_23_vs_2026;
+  if (yr) rows.push(["Did the address lure fade by 2026?", `${yr.counts["2022-23"][0]} of ${yr.groups["2022-23"]} vs ${yr.counts["2026"][0]} of ${yr.groups["2026"]}`, `${yr.test}, ${ptxt(yr.p_value)}`, "Suggestive only: 2026 rests on 7 texts"]);
+  if (T.join) { const j = T.join.endings_texts_vs_blocklist; rows.push(["Do text links use the same endings as blocklists?", ".com and short links in texts; .top on blocklists", `${j.test}, ${ptxt(j.p_value)}, V = ${j.cramers_v}`, "Moderate, real difference"]); }
+}
+if (C) { const tc = C.new_domains.test_campaign_vs_review; rows.push(["Are campaign names more often likely scams?", `${C.new_domains.likely_scam_in_campaign.k}/${C.new_domains.likely_scam_in_campaign.n} vs ${C.new_domains.likely_scam_not_in_campaign.k}/${C.new_domains.likely_scam_not_in_campaign.n}`, `${tc.test}, ${ptxt(tc.p_value)}`, "Consistent, but the review is not independent"]); }
+if (D.intervals) rows.push(["How many queue names are likely scams?", `${pct(D.intervals.queue_likely_scam.share)}`, ci(D.intervals.queue_likely_scam), "A wide range: the queue is small"]);
+$("tests").innerHTML = rows.map(r => `<tr>${r.map((c, i) => `<td${i === 0 ? ' style="white-space:normal;min-width:200px"' : i === 3 ? ' style="white-space:normal"' : ""}>${c}</td>`).join("")}</tr>`).join("");
 </script>

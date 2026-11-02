@@ -176,6 +176,123 @@ def registration_summary(df: pd.DataFrame, conn) -> dict:
     }
 
 
+def _label(row) -> str:
+    """'fedex-*.shop' with prefix 'fedex-vip' -> 'fedex-vip*.shop' (dots defanged for display)."""
+    t, p = row["template"], row["prefix"]
+    head = t.split("*", 1)[0].split("#", 1)[0]
+    if p and p.startswith(head) and len(p) > len(head) and "*" in t:
+        t = p + t[len(head) :].lstrip("-.") if t[len(head)] in "*#" else t
+    return t.replace(".", "[.]")
+
+
+def domain_campaigns(df: pd.DataFrame, conn, stream: dict) -> dict:
+    """Template campaigns among new domains and among blocklisted scams (see campaigns.py)."""
+    from . import campaigns as cp
+    from .features import is_infrastructure
+    from .stats import compare_mix, wilson
+
+    regs = pd.DataFrame(
+        conn.execute(
+            "SELECT registered_domain, registrar, created_at FROM registrations WHERE status = 'ok'"
+        ).fetchall(),
+        columns=["registered_domain", "registrar", "created_at"],
+    )
+    new = df[(df.set == "stream") & df.brand.notna()]
+    new = new[~new.fqdn.map(is_infrastructure)]
+    mined_new = cp.mine(new.assign(seen=new.first_new_signal)[["fqdn", "seen"]], regs)
+    scams = df[df.set == "scam"]
+    mined_bl = cp.mine(scams.assign(seen=scams.first_listed)[["fqdn", "seen"]], regs)
+    bl_names = dict(zip(mined_bl.template, mined_bl.names, strict=True)) if len(mined_bl) else {}
+
+    member_of: dict[str, str] = {}
+    campaigns_out = []
+    for _, r in mined_new.iterrows():
+        label = _label(r)
+        for f in r["members"]:
+            member_of[defang(f)] = label
+        campaigns_out.append(
+            {
+                "label": label,
+                "names": int(r["names"]),
+                "days": r["days"],
+                "first_seen": str(r["first_seen"])[:10],
+                "last_seen": str(r["last_seen"])[:10],
+                "registrars": r["registrars"],
+                "with_registration_data": int(r["with_registration_data"]),
+                "same_template_blocklisted": int(bl_names.get(r["template"], 0)),
+                "examples": [defang(x) for x in r["examples"]],
+            }
+        )
+    # one registrar behind several templates = likely one operator
+    operators: dict[str, dict] = {}
+    for c in campaigns_out:
+        for reg, n in c["registrars"].items():
+            o = operators.setdefault(reg, {"templates": [], "names": 0})
+            o["templates"].append(c["label"])
+            o["names"] += n
+    operators = {k: v for k, v in sorted(operators.items(), key=lambda kv: -kv[1]["names"]) if len(v["templates"]) >= 2}
+
+    # does belonging to a mined campaign go with the review calling a name a likely scam?
+    rows = stream["rows"]
+    for row in rows:
+        row["campaign"] = member_of.get(row["fqdn"])
+    in_c = [r["review"] == "likely_scam" for r in rows if r["campaign"]]
+    out_c = [r["review"] == "likely_scam" for r in rows if not r["campaign"]]
+    yes = "likely scam"
+    test = compare_mix(
+        [yes if x else "not" for x in in_c], [yes if x else "not" for x in out_c], ("in a campaign", "not in one")
+    )
+    return {
+        "new_domains": {
+            "names": len(new),
+            "in_campaigns": int(sum(c["names"] for c in campaigns_out)),
+            "campaigns": campaigns_out,
+            "operators": operators,
+            "likely_scam_in_campaign": wilson(sum(in_c), len(in_c)),
+            "likely_scam_not_in_campaign": wilson(sum(out_c), len(out_c)),
+            "test_campaign_vs_review": test,
+            "test_caveat": "the same reviewer labelled the names and could see the series, so the review is not "
+            "independent of campaign membership; read the test as consistency, not proof",
+        },
+        "blocklisted": {
+            "names": len(scams),
+            "in_templates": int(mined_bl.names.sum()) if len(mined_bl) else 0,
+            "templates": len(mined_bl),
+            "top": [{"label": _label(r), "names": int(r["names"])} for _, r in mined_bl.head(10).iterrows()],
+        },
+        "_blocklist_templates": set(bl_names),
+    }
+
+
+def text_domain_join(texts: dict, df: pd.DataFrame, bl_templates: set) -> dict:
+    """Connect the two halves: do the links in scam texts look like the domains on blocklists?"""
+    from . import campaigns as cp
+    from .stats import compare_mix
+    from .texts import _extract
+
+    hosts = texts.pop("link_hosts", [])
+    link_endings = [_extract(h).suffix for h in hosts if _extract(h).suffix]
+    bl_endings = list(df[df.set == "scam"].tld.dropna())
+    link_templates = [cp.shape(h) for h in hosts]
+    matched = [t for t in link_templates if t in bl_templates]
+    for c in texts.get("campaigns", {}).get("top", []):
+        hs = c.pop("link_hosts", [])
+        c["link_endings"] = {
+            k: int(v) for k, v in pd.Series([_extract(h).suffix for h in hs]).value_counts().head(3).items()
+        }
+        c["link_templates"] = [
+            t.replace(".", "[.]") for t in pd.Series([cp.shape(h) for h in hs]).value_counts().head(2).index
+        ]
+    return {
+        "link_hosts": len(hosts),
+        "endings_texts_vs_blocklist": compare_mix(
+            link_endings, bl_endings, ("text-message links", "blocklisted scams")
+        ),
+        "link_template_seen_on_blocklist": {"k": len(matched), "n": len(hosts)},
+        "matched_templates": [t.replace(".", "[.]") for t in pd.Series(matched).value_counts().head(5).index],
+    }
+
+
 def text_mining(conn) -> dict:
     """Real scam texts (SmishTank): lures, campaigns, script reuse, and how their links meet our domain data."""
     from . import texts as tx
@@ -252,6 +369,18 @@ def run(conn) -> dict:
     res["experiment"].update(ex.learning_curves(keyword_scope, a))
     res["experiment"]["generator_B_examples"] = [defang(d) for d in res["experiment"]["generator_B_examples"]]
     res["texts"] = text_mining(conn)
+    camp = domain_campaigns(df, conn, res["stream"])
+    bl_templates = camp.pop("_blocklist_templates")
+    res["campaigns"] = camp
+    if res["texts"]:
+        res["texts"]["join"] = text_domain_join(res["texts"], df, bl_templates)
+    from .stats import wilson
+
+    s, rg = res["stream"], res["registrations"]
+    res["intervals"] = {
+        "queue_likely_scam": wilson(s["review_counts"].get("likely_scam", 0), s["after_stage2_model"]),
+        "blocklisted_already_gone": wilson(rg.get("already_gone_not_found", 0), rg.get("looked_up", 0)),
+    }
     (OUT / "results.json").write_text(json.dumps(res, indent=2, default=str))
     charts(res)
     return res

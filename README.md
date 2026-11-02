@@ -25,8 +25,8 @@ recomputes the report, rebuilds the dashboard and commits both. It needs one rep
 | How many reach the analyst? | **47** after the brand-word rule and a cloud-infrastructure filter (about **198 → 15 analyst hours a month**, at 5 minutes per review) |
 | Are they real? | Name-only review: **35 likely scams**, 9 unsure, 3 legitimate (74% likely scams) |
 | Are they already blocked? | **None of the 35** is on any of the blocklists we read |
-| Do blocklists act in time? | Of 296 blocklisted brand domains we looked up, **258 (87%) no longer exist** at the registry, so by listing time the campaign has often moved on |
-| Campaign signals | Series such as `fedex-vip*.shop` and `dhl+letters.cc`; one registrar (Dominet (HK) Limited) handled 18 of the flagged registrations |
+| Do blocklists act in time? | Of 350 blocklisted brand domains we looked up, **312 (89%, 95% CI 85–92%) no longer exist** at the registry, so by listing time the campaign has often moved on |
+| Campaigns | Found by code, not by eye: **22 of the 47** names in the queue belong to 4 template campaigns; one registrar (Dominet (HK) Limited) is behind 17 of them across 3 templates |
 
 ### How good is the detector, honestly?
 
@@ -59,17 +59,47 @@ from real training labels.
 - With 25 real labels, real data alone reaches 0% recall at 95% precision; adding A lifts it to
   87%. From about 200 labels, real data alone is best and A's wrong assumptions start to cost.
 
+### Campaigns the code found (data mining)
+
+Every name is reduced to the template it was stamped from (`fedex-vipbtb.shop` → `fedex-*.shop`,
+`usps.com-trackdqf.top` → `usps.com-track*.top`: brand and delivery words kept, random letters `*`,
+digits `#`, ending kept), names sharing a template are grouped, and each group gets its registrars
+and dates from RDAP (`analysis/campaigns.py`). No pattern list is typed in by hand.
+
+- **New domains:** 22 of 47 queue names fall into 4 templates. `fedex*.com`: 10 names in 7 days,
+  all Dominet (HK) Limited, and the same template already has 4 blocklisted names. `fedex-vip*.shop`:
+  5 names in 4 days. Dominet also registered both `dhl*.cc` templates: one registrar, 17 names,
+  3 templates, likely one operator, and one abuse report would cover all of them.
+- **Blocklisted scams:** 61% (1,351 of 2,230) come from 44 templates; the largest,
+  `usps.com-track*.top`, has 842 names.
+- In the review, 22 of 22 campaign names were likely scams against 13 of 25 other names (Fisher's
+  exact test, p < 0.001). The same reviewer saw the names, so this shows consistency, not proof.
+
+### Statistics behind the headlines
+
+Shares come with 95% Wilson intervals (they stay inside 0–100% and behave for small samples);
+differences between groups use a chi-square test, or Fisher's exact test for small 2×2 tables, with
+Cramér's V for the size of the difference (`analysis/stats.py`).
+
+| Question | Result | Test | Read it as |
+|---|---|---|---|
+| Do real lures match the assumed ones (generator A)? | address 68% vs 23%, fee 5% vs 67% | chi-square, p < 0.001, V = 0.64 | large, real difference |
+| Did the address lure fade by 2026? | 123/178 vs 2/7 | Fisher, p = 0.04 | suggestive only: 7 texts |
+| Do text links use blocklist endings? | `.com` 40% vs 14%, `.top` 14% vs 43% | chi-square, p < 0.001, V = 0.30 | moderate, real difference |
+| How many queue names are likely scams? | 35 of 47 = 74% | 95% CI 61–85% | wide: the queue is small |
+
 ### What the scam texts say (text mining)
 
 1,162 real scam texts reported by the public to SmishTank (its published research dataset,
 2022–23, plus the newest 100 from its live feed); 185 pose as a delivery.
 
-- **Scripts repeat, domains don't.** In the later half of delivery-scam texts (93), **75%** reused a
-  script already seen earlier, and **87%** of those carried a domain no earlier report contained.
+- **Scripts repeat, domains don't.** In the later half of delivery-scam texts (93), **75%** (95% CI
+  66–83%) reused a script already seen earlier, and **87%** (77–93%) of those carried a domain no
+  earlier report contained.
   A blocklist built from earlier reports misses them; matching the wording catches them. The
   biggest script was sent 46 times with 44 different domains. The test only looks back in time
   (`script_reuse` in `analysis/texts.py`).
-- **Most links don't name the brand.** Only **33%** of delivery-scam links have the carrier in the
+- **Most links don't name the brand.** Only **33%** (26–40%) of delivery-scam links have the carrier in the
   domain, so the domain monitor above sees at most a third of what is actually sent. Text and
   domain monitoring cover different halves.
 - **The lure is the address, not the fee.** 68% ask to fix an "incomplete address"; 5% ask for a fee
@@ -77,6 +107,10 @@ from real training labels.
 - **"Reply Y, then open the link."** 41% ask the reader to reply or copy the link, which switches on
   links the phone disabled for an unknown sender. Generator A had 0%.
 - **Senders:** half phone numbers, 35% email-to-text; foreign numbers mostly +44, +60, +63.
+- **Texts vs blocklists:** links in texts end in `.com` 40% of the time against 14% for blocklisted
+  scam domains, and only 11 of 171 text links share a template with a blocklisted campaign. What
+  blocklists collect and what people receive are different populations (part of the gap is time:
+  the texts are mostly 2022–23).
 
 Method: links are pulled out even when written to dodge filters (`shm.to/ IRSDocs`,
 `hxxps://x[.]com`); messages are normalised (links, amounts, numbers removed) and grouped by TF-IDF
@@ -123,13 +157,15 @@ scamwatch/
   analysis/model.py        detector + grouped / leave-one-brand-out evaluation
   analysis/experiment.py   synthetic vs real experiment
   analysis/texts.py        text mining: link extraction, lures, campaigns, script reuse
+  analysis/campaigns.py    data mining: domain templates, campaigns, registrars
+  analysis/stats.py        Wilson intervals, chi-square and Fisher's exact tests
   analysis/report.py       every number and chart in outputs/
   cli.py                   python -m scamwatch ...
 db/migrations/             0001_init.sql, 0002_keyless_sources.sql, 0003_smishtank.sql (never edit an applied file)
 data/synthetic/            generator A output (frozen)
 data/review/               name-only review of the flagged stream domains
 dashboard/index.html       static dashboard snapshot
-tests/                     pytest, 78 tests
+tests/                     pytest, 83 tests
 ```
 
 ## Run it

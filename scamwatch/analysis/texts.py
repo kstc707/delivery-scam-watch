@@ -22,6 +22,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from .features import BRANDS, brand_token
+from .stats import compare_mix, wilson
 
 _extract = tldextract.TLDExtract(suffix_list_urls=(), cache_dir=None)  # bundled list, no network
 
@@ -269,6 +270,7 @@ def summarize(df: pd.DataFrame, gen_a: pd.DataFrame | None = None) -> dict:
         .agg(
             messages=("text", "size"),
             domains=("hosts", lambda x: len({registered_domain(h) for hs in x for h in hs})),
+            link_hosts=("hosts", lambda x: sorted({h for hs in x for h in hs})),
             first=("posted_at", "min"),
             last=("posted_at", "max"),
             brand=("brand", lambda x: x.mode().iat[0] if x.notna().any() else "unbranded"),
@@ -304,6 +306,7 @@ def summarize(df: pd.DataFrame, gen_a: pd.DataFrame | None = None) -> dict:
                     "first": str(r.first)[:10],
                     "last": str(r.last)[:10],
                     "example": r.example[:220],
+                    "link_hosts": r.link_hosts,
                 }
                 for r in multi.head(6).itertuples()
             ],
@@ -316,14 +319,37 @@ def summarize(df: pd.DataFrame, gen_a: pd.DataFrame | None = None) -> dict:
             else None,
         },
         "link_domains": sorted({registered_domain(h) for hs in d.hosts for h in hs}),
+        "link_hosts": sorted({h for hs in d.hosts for h in hs}),
+    }
+    # how sure are we? (95% Wilson intervals; see stats.py)
+    reused = late[late.known_script]
+    out["intervals"] = {
+        "later_reuse_known_script": wilson(int(late.known_script.sum()), len(late)),
+        "of_those_with_never_seen_domain": wilson(int(reused.new_domain.sum()), len(reused)),
+        "link_contains_brand": wilson(int(with_link.link_has_brand.sum()), len(with_link)),
+        "reply_trick": wilson(int(d.reply_trick.sum()), len(d)),
+        "lure_update_address": wilson(int((d.lure == "update address").sum()), len(d)),
+        "lure_pay_a_fee": wilson(int((d.lure == "pay a fee").sum()), len(d)),
+    }
+    old, new = d[d.origin != "feed 2026"], d[d.origin == "feed 2026"]
+    out["tests"] = {
+        "lures_2022_23_vs_2026": compare_mix(
+            ["update address" if x == "update address" else "other lure" for x in old.lure],
+            ["update address" if x == "update address" else "other lure" for x in new.lure],
+            ("2022-23", "2026"),
+        ),
     }
     if gen_a is not None and len(gen_a):
         a = gen_a[gen_a.label == "scam"]
+        a_lures = a.text.map(lure_of)
         out["generator_a"] = {
-            "lures": shares(a.text.map(lure_of)),
+            "lures": shares(a_lures),
             "reply_trick": round(float(a.text.str.contains(REPLY_TRICK).mean()), 3),
             "link_contains_brand": round(
                 float(a.text.map(lambda t: any(brand_token(host_of(u)) for u in extract_urls(t))).mean()), 3
             ),
         }
+        out["tests"]["lures_real_vs_generator_a"] = compare_mix(
+            list(d.lure), list(a_lures), ("real texts", "generator A")
+        )
     return out

@@ -13,6 +13,7 @@ dependencies = [
     "numpy>=2.0",
     "pandas>=2.2",
     "scikit-learn>=1.5",        # detector, TF-IDF text clustering
+    "scipy>=1.13",              # chi-square and Fisher exact tests
     "matplotlib>=3.9",          # report charts
 ]
 

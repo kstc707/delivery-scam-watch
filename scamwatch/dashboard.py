@@ -47,7 +47,14 @@ def page_data(res: dict) -> dict:
         "labelled": res["labelled"],
         "stream": {k: st[k] for k in STREAM_KEYS if k in st},
         "rows": [
-            {"d": r["fqdn"], "b": r["brand"], "r": r["review"], "t": r["first_signal"], "s": r["score"]}
+            {
+                "d": r["fqdn"],
+                "b": r["brand"],
+                "r": r["review"],
+                "t": r["first_signal"],
+                "s": r["score"],
+                "c": r.get("campaign"),
+            }
             for r in st["rows"]
         ],
         "patterns": ex["pattern_shares"],
@@ -63,6 +70,8 @@ def page_data(res: dict) -> dict:
         "sources": sources,
         "bExamples": ex["generator_B_examples"],
         "texts": res.get("texts") or None,
+        "campaigns": res.get("campaigns"),
+        "intervals": res.get("intervals"),
     }
 
 
